@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GAP Compliance Dashboard | BILLING TEAM</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+</head>
+
+<body>
+    <div class="app-container">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="logo">
+                <div class="logo-icon">EJS</div>
+                <span class="logo-text">BILLING TEAM</span>
+            </div>
+            <nav class="nav-menu">
+                <a href="#" class="nav-item active" data-tab="performance">
+                    <span class="icon">📊</span> Performance
+                </a>
+                <a href="#" class="nav-item" data-tab="aging">
+                    <span class="icon">⏳</span> Aging Report
+                </a>
+                <a href="#" class="nav-item" data-tab="dso">
+                    <span class="icon">💰</span> DSO
+                </a>
+                <a href="#" class="nav-item" data-tab="revenue">
+                    <span class="icon">💵</span> Revenue
+                </a>
+                <a href="#" class="nav-item">
+                    <span class="icon">🛡️</span> Risk Control
+                </a>
+                <a href="#" class="nav-item">
+                    <span class="icon">⚙️</span> Settings
+                </a>
+            </nav>
+            <div class="sidebar-footer">
+                <div class="user-profile">
+                    <div class="avatar">JD</div>
+                    <div class="user-info">
+                        <span class="user-name">Executive User</span>
+                        <span class="user-role">Director</span>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-panel">
+            <header class="header">
+                <div class="header-left">
+                    <h1 id="view-title">Dashboard de Performance</h1>
+                    <p class="subtitle" id="view-subtitle">Análisis detallado de eficiencia y metas.</p>
+                </div>
+                <div class="header-right">
+                    <div class="date-picker">Marzo 2026</div>
+                    <input type="file" id="file-upload" accept=".csv, .xlsx, .xls" style="display: none;">
+                    <button class="btn btn-primary" onclick="document.getElementById('file-upload').click()">📂 Subir
+                        Excel/CSV</button>
+
+                </div>
+            </header>
+
+            <!-- KPI Cards (Common for Performance) -->
+            <section class="kpi-grid" id="kpi-summary-cards">
+                <div class="kpi-card" id="card-efficiency">
+                    <div class="kpi-header">
+                        <span class="kpi-label">General Efficiency</span>
+                        <span class="trend up">↑ 2.4%</span>
+                    </div>
+                    <div class="kpi-value" id="val-efficiency">--%</div>
+                    <div class="sparkline-container">
+                        <canvas id="spark-efficiency"></canvas>
+                    </div>
+                </div>
+                <div class="kpi-card" id="card-above-target">
+                    <div class="kpi-header">
+                        <span class="kpi-label">% On Target</span>
+                        <span class="trend down">↓ 1.2%</span>
+                    </div>
+                    <div class="kpi-value" id="val-above-target">--%</div>
+                    <div class="sparkline-container">
+                        <canvas id="spark-above-target"></canvas>
+                    </div>
+                </div>
+                <div class="kpi-card" id="card-on-target">
+                    <div class="kpi-header">
+                        <span class="kpi-label">On Target</span>
+                        <span class="trend up">↑ 1</span>
+                    </div>
+                    <div class="kpi-value" id="val-on-target">0</div>
+                    <div class="sparkline-container">
+                        <canvas id="spark-on-target"></canvas>
+                    </div>
+                </div>
+                <div class="kpi-card highlight-risk" id="card-risk">
+                    <div class="kpi-header">
+                        <span class="kpi-label">Members at Risk</span>
+                        <span class="trend neutral">-</span>
+                    </div>
+                    <div class="kpi-value" id="val-risk">0</div>
+                    <div class="sparkline-container">
+                        <canvas id="spark-risk"></canvas>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Tab Sections -->
+            <div id="tab-performance" class="tab-content active">
+                <div class="content-grid">
+                    <div class="performance-trend-box card">
+                        <div class="card-header">
+                            <h3>Performance Trend</h3>
+                            <div class="legend">
+                                <span class="dot actual"></span> Actual
+                                <span class="dot target"></span> Target (90%)
+                            </div>
+                        </div>
+                        <div class="chart-container">
+                            <canvas id="mainPerformanceChart"></canvas>
+                        </div>
+                    </div>
+
+                    <div class="team-table-box card">
+                        <div class="card-header">
+                            <h3>Team Performance</h3>
+                        </div>
+                        <div class="table-wrapper">
+                            <table id="teamTable">
+                                <thead>
+                                    <tr>
+                                        <th>Miembro</th>
+                                        <th>Balance</th>
+                                        <th>Status</th>
+                                        <th>Tendencia</th>
+                                    </tr>
+                                </thead>
+                                <tbody></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="tab-aging" class="tab-content">
+                <div class="content-grid-full card">
+                    <div class="card-header">
+                        <h3>Aging Distribution (Jobs)</h3>
+                    </div>
+                    <div class="chart-container-large">
+                        <canvas id="agingChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <div id="tab-dso" class="tab-content">
+                <div class="content-grid-full card">
+                    <div class="card-header">
+                        <h3>Days Sales Outstanding (DSO) Trend</h3>
+                    </div>
+                    <div class="chart-container-large">
+                        <canvas id="dsoChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <div id="tab-revenue" class="tab-content">
+                <div class="content-grid-full card">
+                    <div class="card-header">
+                        <h3>Revenue & Projections</h3>
+                    </div>
+                    <div class="chart-container-large">
+                        <canvas id="revenueChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Executive Summary Section (Bottom) -->
+            <section class="executive-summary-section card">
+                <h3>Resumen Ejecutivo (Dirección Financiera)</h3>
+                <div id="exec-summary-content" class="executive-text">
+                    <!-- Text injected by script.js -->
+                </div>
+            </section>
+        </main>
+
+        <!-- Right Alerts Panel -->
+        <aside class="alerts-panel">
+            <div class="alerts-header">
+                <h3>Risk & Alerts</h3>
+                <span class="badge" id="alert-count">0</span>
+            </div>
+            <div class="alerts-list" id="alerts-list">
+                <!-- Alerts injected by script.js -->
+            </div>
+
+            <div class="insights-box">
+                <h3>Executive Insights</h3>
+                <ul class="insights-list" id="insights-list">
+                    <!-- Insights injected by script.js -->
+                </ul>
+            </div>
+        </aside>
+    </div>
+    <script src="script.js"></script>
+</body>
+
+</html>
