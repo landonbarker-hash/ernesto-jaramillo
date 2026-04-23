@@ -4,10 +4,15 @@
 
 // ── GLOBAL DATA & PERSISTENCE ──────────────────────────────────
 const STORAGE_KEY = 'ar_dashboard_data';
+const SCHEMA_VERSION = 4; // Increment this when DASHBOARD_DATA structure changes
 let currentCaFilter = 'all'; // Filter for Cash App items
+let activeTab = 'overview'; // Track currently active tab globally
+let currentLang = 'es';    // Language toggle state ('es' | 'en')
 
 function saveState() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(DATA));
+  const toSave = JSON.parse(JSON.stringify(DATA));
+  toSave.__version = SCHEMA_VERSION;
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(toSave));
 }
 
 function loadState() {
@@ -15,10 +20,20 @@ function loadState() {
   if (!saved) return;
   try {
     const parsed = JSON.parse(saved);
-    // Deep merge to preserve structure if necessary, or just assign
+    // ── SCHEMA VERSION CHECK ──────────────────────────────────────
+    // If saved version doesn't match current schema, discard stale data
+    // to prevent crashes from structural mismatches.
+    if (!parsed.__version || parsed.__version !== SCHEMA_VERSION) {
+      console.warn('[AR Dashboard] Schema version mismatch. Clearing localStorage and loading defaults.');
+      localStorage.removeItem(STORAGE_KEY);
+      return;
+    }
+    delete parsed.__version;
+    // Deep merge loaded state into DATA
     Object.assign(DATA, parsed);
   } catch (err) {
-    console.error('Error loading saved state:', err);
+    console.error('[AR Dashboard] Error loading saved state, clearing:', err);
+    localStorage.removeItem(STORAGE_KEY);
   }
 }
 
@@ -111,6 +126,7 @@ function switchTab(id, btn) {
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
   document.getElementById('tab-' + id).classList.add('active');
   btn.classList.add('active');
+  activeTab = id; // Keep global activeTab in sync
   document.getElementById('page-title').textContent = titles[id];
   // lazy-init charts
   setTimeout(() => { initCharts(id); }, 50);
@@ -120,9 +136,16 @@ function switchTab(id, btn) {
 const fmt = n => '$' + n.toLocaleString('es-CR');
 const pct = (a, t) => ((a / t) * 100).toFixed(1) + '%';
 const COLORS = {
-  blue: '#a855f7', purple: '#d946ef', green: '#10b981',
-  orange: '#f59e0b', red: '#f43f5e', yellow: '#eab308',
-  surface: '#14121c', border: 'rgba(255,255,255,0.04)', text: '#ffffff', text2: '#a1a1aa'
+  blue: '#3b82f6',
+  purple: '#8b5cf6',
+  green: '#10b981',
+  orange: '#f59e0b',
+  red: '#ef4444',
+  yellow: '#eab308',
+  bg: '#090A0F',
+  surface: '#11131A',
+  text: '#ffffff',
+  text2: '#94a3b8'
 };
 
 function chartDefaults() {
@@ -140,7 +163,7 @@ function chartDefaults() {
       let ctx = chart.ctx;
       ctx.save();
       if (chart.config.type === 'line') {
-        ctx.shadowColor = 'rgba(217, 70, 239, 0.5)';
+        ctx.shadowColor = 'rgba(176, 38, 255, 0.5)';
         ctx.shadowBlur = 12;
         ctx.shadowOffsetX = 0;
         ctx.shadowOffsetY = 4;
@@ -279,7 +302,7 @@ function initCharts(tab) {
         type: 'doughnut',
         data: {
           labels: ['Riesgo Alto', 'Riesgo Medio', 'Riesgo Bajo'],
-          datasets: [{ data: [hiRisk, medRisk, lowRisk], backgroundColor: [COLORS.red, COLORS.yellow, COLORS.green], hoverOffset: 4, borderWidth: 4, borderColor: '#14121c', borderRadius: 4 }]
+          datasets: [{ data: [hiRisk, medRisk, lowRisk], backgroundColor: [COLORS.red, COLORS.yellow, COLORS.green], hoverOffset: 4, borderWidth: 4, borderColor: 'rgba(0,0,0,0.5)', borderRadius: 4 }]
         },
         options: {
           responsive: true, maintainAspectRatio: false, cutout: '70%',
@@ -304,13 +327,13 @@ function initCharts(tab) {
             {
               label: 'DSO Real',
               data: DATA.dsoHistory,
-              borderColor: COLORS.purple,
-              backgroundColor: 'rgba(217, 70, 239, 0.1)',
+              borderColor: COLORS.green,
+              backgroundColor: 'rgba(57, 255, 20, 0.15)',
               fill: true,
               tension: 0.5,
-              pointRadius: 0,
+              pointRadius: 3,
               pointHoverRadius: 6,
-              pointBackgroundColor: COLORS.purple,
+              pointBackgroundColor: COLORS.bg,
               borderWidth: 2
             },
             { label: 'Objetivo', data: Array(6).fill(DATA.dso.target), borderColor: COLORS.yellow, borderDash: [5, 5], pointRadius: 0, fill: false, borderWidth: 2 },
@@ -570,7 +593,53 @@ function buildCashApp() {
 
     const susInsight = document.createElement('li');
     susInsight.innerHTML = `<strong>Causa Principal de Descuadres:</strong> El motivo #1 de partidas sin registrar es por <strong>${topReason}</strong> (${maxSusVal}% en la muestra de suspenso). <em>Acción recomendada: Automatizar recordatorios para que los clientes adjunten esta información en sus comprobantes de pago.</em>`;
+    susInsight.style.marginBottom = "6px";
     insightsList.appendChild(susInsight);
+
+    // Insight 4: YoY Comparison Chart Analysis
+    const history = ca.appliedCashHistory;
+    if (history && history.currentYear && history.prevYear) {
+      const curr = history.currentYear;
+      const prev = history.prevYear;
+      const months = DATA.months;
+
+      const total2026 = curr.reduce((s, v) => s + v, 0);
+      const total2025 = prev.reduce((s, v) => s + v, 0);
+      const yoyPct = ((total2026 - total2025) / total2025 * 100).toFixed(1);
+
+      // Best and worst month by delta
+      const deltas = curr.map((v, i) => ({ month: months[i], delta: v - prev[i], pct: ((v - prev[i]) / prev[i] * 100).toFixed(1) }));
+      const bestMonth = deltas.reduce((a, b) => b.delta > a.delta ? b : a);
+      const worstMonth = deltas.reduce((a, b) => b.delta < a.delta ? b : a);
+
+      // Acceleration: compare avg growth of last 3 vs first 3 months
+      const firstHalf = deltas.slice(0, Math.floor(deltas.length / 2));
+      const secondHalf = deltas.slice(Math.floor(deltas.length / 2));
+      const avgFirst = firstHalf.reduce((s, d) => s + parseFloat(d.pct), 0) / firstHalf.length;
+      const avgSecond = secondHalf.reduce((s, d) => s + parseFloat(d.pct), 0) / secondHalf.length;
+      const isAccelerating = avgSecond > avgFirst;
+      const trendLabel = isAccelerating
+        ? `<span style="color:#10b981">acelerando ▲</span> (promedio reciente +${avgSecond.toFixed(1)}% vs inicio +${avgFirst.toFixed(1)}%)`
+        : `<span style="color:#f59e0b">desacelerando ▼</span> (promedio reciente +${avgSecond.toFixed(1)}% vs inicio +${avgFirst.toFixed(1)}%)`;
+
+      const yoySign = yoyPct >= 0 ? '+' : '';
+      const yoyColor = yoyPct >= 0 ? '#10b981' : '#ef4444';
+
+      const yoyInsight = document.createElement('li');
+      yoyInsight.style.marginTop = "10px";
+      yoyInsight.style.paddingTop = "10px";
+      yoyInsight.style.borderTop = "1px solid rgba(255,255,255,0.06)";
+      yoyInsight.innerHTML = `
+        <strong>📈 Análisis Interanual (2026 vs 2025):</strong>
+        El efectivo aplicado acumulado en 2026 es de <strong style="color:#3b82f6">${fmt(total2026)}</strong>,
+        superando los <strong style="color:rgba(255,255,255,0.5)">${fmt(total2025)}</strong> del mismo período en 2025
+        — un crecimiento de <strong style="color:${yoyColor}">${yoySign}${yoyPct}%</strong>.
+        El mes con mayor mejora fue <strong style="color:#10b981">${bestMonth.month} (+${bestMonth.pct}%)</strong>
+        ${parseFloat(worstMonth.pct) < parseFloat(bestMonth.pct) ? `y el de menor impulso fue <strong style="color:#f59e0b">${worstMonth.month} (+${worstMonth.pct}%)</strong>.` : '.'}
+        La tendencia de crecimiento está ${trendLabel}.
+        <em style="color:var(--text2)"> Recomendación: ${isAccelerating ? 'Mantener el ritmo actual y evaluar automatización adicional para sostener el crecimiento.' : 'Revisar los meses recientes con menor delta para identificar cuellos de botella operativos.'}</em>`;
+      insightsList.appendChild(yoyInsight);
+    }
   }
 
   // Chart 1: Auto vs Manual applying matching rate per month
@@ -604,6 +673,8 @@ function buildCashApp() {
     charts.caMatch.data.datasets[1].data = manData;
     charts.caMatch.update();
   }
+
+  buildCashComparison();
 
   // Chart 2: Aging of Unapplied Cash
   const total = ca.kpis.unapplied;
@@ -694,6 +765,177 @@ function buildCashApp() {
   }
 }
 
+// ── YEARLY CASH COMPARISON ──────────────────────────────────────
+function buildCashComparison() {
+  const history = DATA.cashapp.appliedCashHistory;
+  if (!history) return;
+  const el = document.getElementById('caComparisonChart');
+  if (!el) return;
+
+  const curr = history.currentYear;
+  const prev = history.prevYear;
+  const months = DATA.months;
+  const isEn = typeof currentLang !== 'undefined' && currentLang === 'en';
+
+  // ── Populate KPI summary pills ──────────────────────────────────
+  const total2026 = curr.reduce((s, v) => s + v, 0);
+  const total2025 = prev.reduce((s, v) => s + v, 0);
+  const growthPct = ((total2026 - total2025) / total2025 * 100).toFixed(1);
+  const bestIdx = curr.indexOf(Math.max(...curr));
+
+  const el2026 = document.getElementById('compTotal2026');
+  const el2025 = document.getElementById('compTotal2025');
+  const elGrowth = document.getElementById('compGrowth');
+  const elBest = document.getElementById('compBestMonth');
+
+  if (el2026) el2026.textContent = fmt(total2026);
+  if (el2025) el2025.textContent = fmt(total2025);
+  if (elGrowth) {
+    const sign = growthPct >= 0 ? '+' : '';
+    elGrowth.textContent = `${sign}${growthPct}%`;
+    elGrowth.style.color = growthPct >= 0 ? '#10b981' : '#ef4444';
+  }
+  if (elBest) elBest.textContent = `${months[bestIdx]} · ${fmt(curr[bestIdx])}`;
+
+  // ── Populate month delta badges ─────────────────────────────────
+  const deltaRow = document.getElementById('caCompDeltaRow');
+  if (deltaRow && deltaRow.children.length === 0) {
+    months.forEach((m, i) => {
+      const delta = curr[i] - prev[i];
+      const pct = ((delta / prev[i]) * 100).toFixed(1);
+      const sign = delta >= 0 ? '+' : '';
+      const cls = delta >= 0 ? 'positive' : 'negative';
+      const badge = document.createElement('div');
+      badge.className = `comp-delta-badge ${cls}`;
+      badge.innerHTML = `<span class="delta-month">${m}</span><span>${sign}${pct}%</span>`;
+      deltaRow.appendChild(badge);
+    });
+  }
+
+  // ── Build or update chart ───────────────────────────────────────
+  if (!charts.caComparison) {
+    charts.caComparison = new Chart(el, {
+      type: 'line',
+      data: {
+        labels: months,
+        datasets: [
+          // Dataset 0: Current Year (2026) — main solid line
+          {
+            label: isEn ? 'Current Year (2026)' : 'Año Actual (2026)',
+            data: curr,
+            borderColor: '#3b82f6',
+            backgroundColor: 'rgba(59,130,246,0.12)',
+            fill: true,
+            tension: 0.45,
+            pointRadius: 5,
+            pointHoverRadius: 8,
+            pointBackgroundColor: '#3b82f6',
+            pointBorderColor: '#090A0F',
+            pointBorderWidth: 2,
+            borderWidth: 3,
+            order: 1
+          },
+          // Dataset 1: Previous Year (2025) — dashed ghost line
+          {
+            label: isEn ? 'Previous Year (2025)' : 'Año Anterior (2025)',
+            data: prev,
+            borderColor: 'rgba(255,255,255,0.25)',
+            backgroundColor: 'rgba(255,255,255,0.0)',
+            borderDash: [6, 4],
+            fill: false,
+            tension: 0.45,
+            pointRadius: 3,
+            pointHoverRadius: 6,
+            pointBackgroundColor: 'rgba(255,255,255,0.3)',
+            pointBorderColor: 'transparent',
+            borderWidth: 2,
+            order: 2
+          },
+          // Dataset 2: Gap fill band — invisible line at prev year, fills UP to curr
+          {
+            label: '_gap',
+            data: prev,
+            borderColor: 'transparent',
+            backgroundColor: 'rgba(59,130,246,0.08)',
+            fill: '-1',      // fill between this and dataset 0 (curr year)
+            tension: 0.45,
+            pointRadius: 0,
+            pointHoverRadius: 0,
+            borderWidth: 0,
+            order: 3
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: { mode: 'index', intersect: false },
+        plugins: {
+          legend: {
+            display: true,
+            position: 'top',
+            labels: {
+              color: COLORS.text,
+              font: { size: 11 },
+              // Hide the invisible gap dataset from legend
+              filter: (item) => item.text !== '_gap'
+            }
+          },
+          tooltip: {
+            backgroundColor: 'rgba(17,19,26,0.97)',
+            titleColor: '#fff',
+            bodyColor: '#94a3b8',
+            borderColor: 'rgba(255,255,255,0.08)',
+            borderWidth: 1,
+            padding: 12,
+            callbacks: {
+              title: (items) => months[items[0].dataIndex],
+              beforeBody: () => '─────────────────',
+              label: (ctx) => {
+                if (ctx.dataset.label === '_gap') return null;
+                const idx = ctx.dataIndex;
+                if (ctx.datasetIndex === 0) {
+                  const delta = curr[idx] - prev[idx];
+                  const pct = ((delta / prev[idx]) * 100).toFixed(1);
+                  const arrow = delta >= 0 ? '▲' : '▼';
+                  const sign = delta >= 0 ? '+' : '';
+                  return [
+                    `  2026: ${fmt(curr[idx])}`,
+                    `  2025: ${fmt(prev[idx])}`,
+                    `  Δ YoY: ${sign}${fmt(Math.abs(delta))} (${arrow} ${Math.abs(pct)}%)`
+                  ];
+                }
+                return null;
+              }
+            }
+          }
+        },
+        scales: {
+          x: {
+            grid: { display: false },
+            ticks: { color: COLORS.text2, font: { size: 11 }, padding: 6 }
+          },
+          y: {
+            grid: { color: 'rgba(255,255,255,0.04)', borderDash: [4, 4] },
+            ticks: {
+              color: COLORS.text2,
+              font: { size: 11 },
+              padding: 8,
+              callback: v => '$' + (v / 1000000).toFixed(1) + 'M'
+            },
+            border: { display: false }
+          }
+        }
+      }
+    });
+  } else {
+    // Update existing chart data
+    charts.caComparison.data.datasets[0].data = curr;
+    charts.caComparison.data.datasets[1].data = prev;
+    charts.caComparison.data.datasets[2].data = prev;
+    charts.caComparison.update();
+  }
+}
 
 // ── RISK TABLE ─────────────────────────────────────────────────
 function buildRiskTable() {
@@ -831,16 +1073,9 @@ function regenerateData() {
   }
   document.getElementById('kpi-collected').textContent = fmt(Math.round(DATA.totalAR * 0.45));
   resyncData();
-  // charts will be rebuilt by resyncData calling refresh logic? No, resync updates KPIs.
-  // We need to re-init charts too.
   initCharts(activeTab);
   showToast('🔄 Datos regenerados exitosamente');
 }
-
-// ── INIT ───────────────────────────────────────────────────────
-loadState();
-chartDefaults();
-initCharts('overview');
 
 // ════════════════════════════════════════════════════════════════
 //  UPLOAD MODAL – Subir datos reales (CSV / JSON)
@@ -1028,7 +1263,7 @@ function parseCSVAndApply(csvText) {
     }
 
     if (headers.some(h => h.includes('ca_ref')) || headers.some(h => h.includes('ca_status'))) {
-      parsed.cashapp = parsed.cashapp || { kpis: {}, suspense: {}, items: [] };
+      parsed.cashapp = parsed.cashapp || { kpis: {}, suspense: {}, items: [], appliedCashHistory: null };
       parsed.cashapp.items = rows.filter(r => r.ca_ref).map(r => ({
         ref: r.ca_ref,
         amount: Number(r.ca_amount) || 0,
@@ -1038,11 +1273,24 @@ function parseCSVAndApply(csvText) {
         status: r.ca_status || ''
       }));
     }
+
+    // Section 9: Comparativa Interanual (YoY Cash Applied History)
+    if (headers.includes('ca_history_month') && headers.includes('ca_history_curr') && headers.includes('ca_history_prev')) {
+      parsed.cashapp = parsed.cashapp || { kpis: {}, suspense: {}, items: [], appliedCashHistory: null };
+      parsed.cashapp.appliedCashHistory = {
+        currentYear: rows.map(r => Number(r.ca_history_curr) || 0),
+        prevYear:    rows.map(r => Number(r.ca_history_prev) || 0)
+      };
+      // Also update months if not already parsed from the DSO section
+      if (!parsed.months) {
+        parsed.months = rows.map(r => r.ca_history_month);
+      }
+    }
   };
 
   const isHeaderRow = (cols) => {
     // A row is likely a header if it contains specific known keywords
-    return cols.some(c => ['dso_actual', 'aging_bucket', 'name', 'client', 'month', 'ca_unapplied', 'sus_noref', 'ca_ref'].includes(c));
+    return cols.some(c => ['dso_actual', 'aging_bucket', 'name', 'client', 'month', 'ca_unapplied', 'sus_noref', 'ca_ref', 'ca_history_month'].includes(c));
   };
 
   for (let i = 0; i < lines.length; i++) {
@@ -1104,6 +1352,15 @@ function applyData(parsed) {
     if (parsed.cashapp.kpis && Object.keys(parsed.cashapp.kpis).length > 0) DATA.cashapp.kpis = parsed.cashapp.kpis;
     if (parsed.cashapp.suspense && Object.keys(parsed.cashapp.suspense).length > 0) DATA.cashapp.suspense = parsed.cashapp.suspense;
     if (parsed.cashapp.items && parsed.cashapp.items.length > 0) DATA.cashapp.items = parsed.cashapp.items;
+    // Apply new YoY comparison chart data
+    if (parsed.cashapp.appliedCashHistory) {
+      DATA.cashapp.appliedCashHistory = parsed.cashapp.appliedCashHistory;
+      // Destroy cached chart so it rebuilds with fresh data
+      if (charts.caComparison) { charts.caComparison.destroy(); delete charts.caComparison; }
+      // Clear delta badges so they regenerate
+      const dr = document.getElementById('caCompDeltaRow');
+      if (dr) dr.innerHTML = '';
+    }
     changed++;
   }
 
@@ -1163,6 +1420,18 @@ function exportCSV() {
   d.cashapp.items.forEach(item => {
     csv += `${item.ref},${item.amount},${item.date},${item.days},${item.client},${item.status}\n`;
   });
+  csv += "\n";
+
+  // 9. Comparativa Interanual de Efectivo Aplicado (Gráfica YoY)
+  // Columnas: mes | monto_2026 | monto_2025
+  if (d.cashapp.appliedCashHistory) {
+    const h = d.cashapp.appliedCashHistory;
+    csv += "ca_history_month,ca_history_curr,ca_history_prev\n";
+    d.months.forEach((m, i) => {
+      csv += `${m},${h.currentYear[i] || 0},${h.prevYear[i] || 0}\n`;
+    });
+    csv += "\n";
+  }
 
   // Crear y descargar archivo
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
@@ -1253,13 +1522,16 @@ function handleAddClientSubmit(e) {
 
 
 
-// ── INIT ───────────────────────────────────────────────────────
-loadState();
-chartDefaults();
-resyncData();
+// ── SINGLE INIT POINT ──────────────────────────────────────────
+// All initialization runs ONCE here, after all functions are defined.
+(function initDashboard() {
+  loadState();       // Merge saved state (with schema version check)
+  chartDefaults();   // Configure Chart.js global defaults
+  resyncData();      // Sync data → DOM → charts
+})();
 
 // ── LANGUAGE TOGGLE (I18N) ──────────────────────────────────────────
-let currentLang = 'es';
+// (currentLang declared at top of file as a global)
 
 const esToEn = {
   "Resumen Ejecutivo": "Executive Summary",
@@ -1396,7 +1668,10 @@ const esToEn = {
   "Causa Principal de Descuadres:": "Main Cause of Mismatches:",
   "El motivo #1 de partidas sin registrar es por": "The #1 reason for unregistered items is",
   "en la muestra de suspenso": "in the suspense sample",
-  "Acción recomendada: Automatizar recordatorios para que los clientes adjunten esta información en sus comprobantes de pago.": "Recommended action: Automate reminders for clients to attach this information to their payment receipts."
+  "Acción recomendada: Automatizar recordatorios para que los clientes adjunten esta información en sus comprobantes de pago.": "Recommended action: Automate reminders for clients to attach this information to their payment receipts.",
+  "Comparativa Interanual de Efectivo Aplicado": "Year-on-Year Applied Cash Comparison",
+  "Año Actual (2026)": "Current Year (2026)",
+  "Año Anterior (2025)": "Previous Year (2025)"
 };
 
 const enToEs = Object.fromEntries(Object.entries(esToEn).map(([k,v]) => [v,k]));
@@ -1529,5 +1804,10 @@ function updateChartsLang() {
     charts.projection.data.datasets[1].label = isEn ? 'Medium Probability' : 'Media Probabilidad';
     charts.projection.data.datasets[2].label = isEn ? 'Low Probability' : 'Baja Probabilidad';
     charts.projection.update();
+  }
+  if (charts.caComparison) {
+    charts.caComparison.data.datasets[0].label = isEn ? 'Current Year (2026)' : 'Año Actual (2026)';
+    charts.caComparison.data.datasets[1].label = isEn ? 'Previous Year (2025)' : 'Año Anterior (2025)';
+    charts.caComparison.update();
   }
 }

@@ -88,6 +88,11 @@ const DASHBOARD_DATA = {
                 { client: 'Mercado Libre', amount: 4500, reason: 'Error en Factura', date: '02 Mar 2026', status: 'Validando' },
                 { client: 'Distribuidora Beta', amount: 8900, reason: 'Nota de Crédito', date: '03 Mar 2026', status: 'Pendiente' }
             ]
+        },
+        // --- COMPARATIVA ANUAL DE APLICACIÓN DE EFECTIVO ---
+        appliedCashHistory: {
+            currentYear: [1850000, 1920000, 1780000, 2100000, 1950000, 2200000], // Montos aplicados por mes (2026)
+            prevYear: [1650000, 1720000, 1580000, 1800000, 1750000, 1900000]     // Montos aplicados por mes (2025)
         }
     }
 };

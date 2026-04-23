@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Cuentas por Cobrar – Análisis Estratégico</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@500;700;800&display=swap"
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@200;300;400;500;600;700;800&family=Outfit:wght@200;300;500;700;800&display=swap"
         rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
@@ -18,8 +18,12 @@
         <!-- SIDEBAR -->
         <aside class="sidebar">
             <div class="logo">
-                <span class="logo-icon">◈</span>
-                <span class="logo-text">AR Analytics</span>
+                <svg width="28" height="20" viewBox="0 0 40 24" fill="none" xmlns="http://www.w3.org/2000/svg" class="logo-icon">
+                  <path d="M11 2 L2 12 L11 22 L14 19 L7 12 L14 5 Z" fill="currentColor"/>
+                  <path d="M29 2 L38 12 L29 22 L26 19 L33 12 L26 5 Z" fill="currentColor"/>
+                  <circle cx="20" cy="12" r="5" stroke="currentColor" stroke-width="3"/>
+                </svg>
+                <span class="logo-text">Meltwater</span>
             </div>
             <nav class="nav">
                 <button class="nav-btn active" data-tab="overview" onclick="switchTab('overview',this)">
@@ -65,10 +69,38 @@
         <!-- MAIN CONTENT -->
         <main class="main">
             <header class="topbar">
-                <div>
-                    <h1 class="page-title" id="page-title">Resumen Ejecutivo</h1>
-                    <p class="page-sub">Cuentas por Cobrar · Análisis Estratégico · Marzo 2026</p>
+                <div class="header-titles">
+                    <div class="super-title">OPERATIONS & ANALYTICS</div>
+                    <h1 class="main-title">AR <span class="text-gradient">Intelligence</span> Dashboard</h1>
+                    <p class="page-sub" id="page-title">Resumen Ejecutivo - Marzo 2026</p>
                 </div>
+                
+                <div class="team-members-wrapper">
+                    <div class="team-title">AR TEAM MEMBERS</div>
+                    <div class="team-avatars">
+                        <div class="team-member" onclick="this.classList.toggle('expanded')">
+                            <div class="user-avatar team-avatar-large">
+                                <img src="angelica.png" alt="Angelica" class="profile-img-large">
+                            </div>
+                            <div class="team-member-info">
+                                <span class="team-member-name">Angelica Álvarez Ramírez</span>
+                                <span class="team-member-role">Accounts Receivable Specialist II</span>
+                                <span class="active-status">● Active Now</span>
+                            </div>
+                        </div>
+                        <div class="team-member" onclick="this.classList.toggle('expanded')">
+                            <div class="user-avatar team-avatar-large">
+                                <img src="andrea.png" alt="Andrea" class="profile-img-large">
+                            </div>
+                            <div class="team-member-info">
+                                <span class="team-member-name">Andrea Gutiérrez Llanos</span>
+                                <span class="team-member-role">Accounts Receivable Specialist II</span>
+                                <span class="active-status">● Active Now</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="header-actions">
                     <button id="langToggleBtn" class="lang-toggle-btn" onclick="toggleLang()">
                         <span class="lang-icon">🌐</span> <span id="langText">ES</span>
@@ -94,6 +126,18 @@
 
             <!-- OVERVIEW TAB -->
             <div id="tab-overview" class="tab-content active">
+                <div class="welcome-banner">
+                    <div class="welcome-text">
+                        <h1>Welcome back!</h1>
+                        <p>Your portfolio is currently showing a <span class="text-positive">3.2% increase</span> in collections compared to last month. Keep it up!</p>
+                    </div>
+                    <div class="welcome-stats">
+                        <div class="mini-stat">
+                            <span class="stat-label">AI Insights</span>
+                            <span class="stat-value">High Collections Prob.</span>
+                        </div>
+                    </div>
+                </div>
                 <div class="kpi-grid">
                     <div class="kpi-card accent-blue">
                         <div class="kpi-label">Cartera Total</div>
@@ -380,6 +424,42 @@
                         style="margin: 0; padding-left: 20px; color: var(--text); font-size: 13px; line-height: 1.6;">
                         <li>Calculando insights...</li>
                     </ul>
+                </div>
+
+                <div class="charts-row" style="grid-template-columns: 1fr;">
+                    <div class="chart-card" style="padding: 20px 24px 24px; max-height: none; height: auto;">
+                        <div class="chart-header" style="margin-bottom: 4px;">
+                            <h3>Comparativa Interanual de Efectivo Aplicado</h3>
+                            <span class="chart-tag">2026 vs 2025</span>
+                        </div>
+
+                        <!-- KPI Summary Pills -->
+                        <div id="caCompKpis" style="display:flex; gap:12px; flex-wrap:wrap; margin-bottom:14px; margin-top:6px;">
+                            <div class="comp-kpi-pill">
+                                <span class="comp-kpi-label">Total Aplicado 2026 YTD</span>
+                                <span class="comp-kpi-val" id="compTotal2026" style="color:#3b82f6;">—</span>
+                            </div>
+                            <div class="comp-kpi-pill">
+                                <span class="comp-kpi-label">Total Aplicado 2025 YTD</span>
+                                <span class="comp-kpi-val" id="compTotal2025" style="color:rgba(255,255,255,0.4);">—</span>
+                            </div>
+                            <div class="comp-kpi-pill">
+                                <span class="comp-kpi-label">Crecimiento YoY</span>
+                                <span class="comp-kpi-val" id="compGrowth" style="color:#10b981;">—</span>
+                            </div>
+                            <div class="comp-kpi-pill">
+                                <span class="comp-kpi-label">Mejor Mes (2026)</span>
+                                <span class="comp-kpi-val" id="compBestMonth" style="color:#f59e0b;">—</span>
+                            </div>
+                        </div>
+
+                        <div class="comp-chart-wrap">
+                            <canvas id="caComparisonChart"></canvas>
+                        </div>
+
+                        <!-- Month-by-month delta badges -->
+                        <div id="caCompDeltaRow" style="display:flex; gap:6px; flex-wrap:wrap; margin-top:14px; justify-content:center;"></div>
+                    </div>
                 </div>
 
                 <div class="charts-row">
